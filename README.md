@@ -13,7 +13,7 @@
 > [!IMPORTANT]
 > **Install ffmpeg first:** `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux) or `winget install ffmpeg` (Windows). Without it, Monet can't play your clips.
 
-Answer `y` to add the marketplace, then start a new session.
+Answer `y` to add the marketplace, then start a new session. To update later: `claude plugin marketplace update terminal-monet && claude plugin update monet@terminal-monet`, then start a new session.
 
 ## Add your clips
 
