@@ -43,6 +43,7 @@ Monet finds new files within 20 seconds and shuffles them. `/monet folder` opens
 | `/monet` | Shows or hides the player. |
 | `/monet next` | Plays the next clip. |
 | `/monet side`, `/monet bottom` | Puts the player at the side or at the bottom. |
+| `/monet theme` | Paints the whole side panel in your terminal's color. Pick **Monet** in the list. |
 | `/monet settings` | Look, frame rate, folder, disk limit and more. |
 
 [Full guide](docs/guide.md) · [MIT License](LICENSE)

@@ -137,9 +137,9 @@ Type `/monet settings`. Monet keeps the settings between sessions.
 
 **Auto** look shows real pixels in kitty and Ghostty, and the mosaic in all other terminals.
 
-**Pane color:** Claude Code paints its side panel gray. Monet paints the panel in your terminal's background color instead, so it looks like part of the terminal. Monet reads that color from Ghostty's settings and from GNOME Terminal (a profile's own colors, or Ubuntu's aubergine theme colors). In other terminals, type the color once in **My color** (for example `#282c34`).
+**Pane color:** Claude Code paints its side panel gray, and draws the panel's top row (with `×`) and bottom row itself. So the side panel stays Claude's gray, all of it, until you turn on the Monet theme (below). Then the whole panel takes your terminal's background color and looks like part of the terminal. Monet reads that color from Ghostty's settings and from GNOME Terminal (a profile's own colors, or Ubuntu's aubergine theme colors). In other terminals, type the color once in **My color** (for example `#282c34`).
 
-**The Monet theme:** Claude Code's own rows of the side panel (the one with `×` and the one under the panel) stay gray, because a mod cannot paint them. Monet writes a Claude Code theme for that, `~/.claude/themes/monet.json`: your dark (or light) theme with the side panel in your terminal color. Type `/monet theme` and pick **Monet** in the list. Claude Code lets only you pick a custom theme, so Monet cannot switch it for you. Claude Code reads custom themes when a session starts: if Monet is not in the list, start a new session and try again. `/monet theme off` goes back.
+**The Monet theme:** Claude Code's own rows of the side panel (the one with `×` and the one under the panel) stay gray, because a mod cannot paint them. Monet writes a Claude Code theme for that, `~/.claude/themes/monet.json`: your dark (or light) theme with the side panel in your terminal color. Type `/monet theme` and pick **Monet** in the list. Within 5 seconds the side panel switches to your terminal's color. Claude Code lets only you pick a custom theme, so Monet cannot switch it for you. Claude Code reads custom themes when a session starts: if Monet is not in the list, start a new session and try again. `/monet theme off` goes back.
 
 ## The samples
 

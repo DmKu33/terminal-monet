@@ -1,6 +1,6 @@
 {
   "name": "terminal-monet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A mini player for Claude Code: your videos, GIFs and pictures as a color mosaic at the side or under the spinner. Real pixels in kitty and Ghostty.",
   "license": "MIT",

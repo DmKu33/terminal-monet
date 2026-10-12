@@ -69,6 +69,7 @@ const FIRST_NOW: MonetNow = {
   caption: 'Starting…',
   isPaused: false,
   look: 'half',
+  isThemed: false,
 }
 
 const settingsAtom = atom({ plugin: 'monet', key: 'settings' } as const, DEFAULTS)
@@ -204,6 +205,7 @@ let claudeTheme = ''
 async function readTheme($: $): Promise<string> {
   const row = (await $.config.list()).find(one => one.key === 'theme')
   claudeTheme = String(row?.value ?? 'dark')
+  await setNow($, { isThemed: claudeTheme === THEME })
   return claudeTheme
 }
 
@@ -233,6 +235,7 @@ async function useTheme($: $, isOn: boolean): Promise<string> {
   const result = await $.config.set({ key: 'theme', value })
   if (result.deny) return 'Pick your theme again with /theme.'
   claudeTheme = value
+  await setNow($, { isThemed: false })
   return `Claude Code is back on the ${value} theme.`
 }
 
@@ -636,6 +639,11 @@ async function show($: $, isAsked: boolean): Promise<void> {
   }
   const isPlaced = await openPane($)
   await setSite($, isPlaced ? 'pane' : mode === 'auto' ? 'band' : 'none')
+  // Once ever: the side panel is Claude's gray until the Monet theme paints it all.
+  if (isPlaced && claudeTheme !== THEME && paneColor() && !(await $.store.get('themeTip'))) {
+    $.ui.toast("Tip: /monet theme paints the whole side panel in your terminal's color.")
+    await $.store.set('themeTip', true)
+  }
 }
 
 // A pane that waited undrawn is placed once the terminal widens, and hides
@@ -721,6 +729,8 @@ async function boot($: $): Promise<void> {
   $.clock.every(20_000, () => void rescan($))
   $.clock.every(5_000, () => {
     void checkPane($)
+    // The person may pick the Monet theme in /theme at any time.
+    void readTheme($).catch(() => '')
     if (site !== 'none') void refreshSession($).catch(() => undefined)
   })
   await refreshSession($).catch(() => undefined)
@@ -955,7 +965,7 @@ function settingsTree($: $, ui: Ui, s: MonetSettings, clips: MonetClip[], shown:
         { value: 'no', label: 'Only my clips' },
       ], v => change($, { samples: v === 'yes' }))}
       {pick('color', 'Pane color ', s.paneColor.startsWith('#') ? 'custom' : s.paneColor, [
-        { value: 'terminal', label: terminalColor ? `Match the terminal (${terminalColor})` : 'Match the terminal (type its color below)' },
+        { value: 'terminal', label: terminalColor ? `Match the terminal (${terminalColor}), with the Monet theme` : 'Match the terminal (type its color below)' },
         { value: 'claude', label: "Claude Code's gray" },
         ...(s.paneColor.startsWith('#') ? [{ value: 'custom', label: `My color (${s.paneColor})` }] : []),
       ], v => (v === 'custom' ? Promise.resolve() : change($, { paneColor: v })))}
@@ -1163,8 +1173,10 @@ export const register: Register = on => {
     const columns = Math.max(8, e.props.bodyColumns)
     const isDock = e.props.placement === 'dock'
     const bodyRows = Math.max(5, e.props.scroll.bodyRows)
-    // A docked pane fills its whole height, so its color covers the dock's gray.
-    const background = paneColor()
+    // Docked, the pane fills its whole height, but Claude Code draws the dock's
+    // top and bottom rows itself, in its theme's gray. So the pane takes the
+    // terminal's color only with the Monet theme, which paints those rows too.
+    const background = isDock && !shown.isThemed ? undefined : paneColor()
     const paint = {
       ...(background ? { backgroundColor: background } : {}),
       ...(isDock ? { height: bodyRows } : {}),

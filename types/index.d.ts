@@ -79,6 +79,8 @@ export type MonetNow = {
   isPaused: boolean
   /** The look in use after `auto` and fallbacks resolved. */
   look: Exclude<MonetLook, 'auto'>
+  /** Whether Claude Code uses the Monet theme, which paints the dock's own rows too. */
+  isThemed: boolean
 }
 
 declare module 'claude-code' {
