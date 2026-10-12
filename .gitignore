@@ -1,0 +1,28 @@
+# Dependencies, logs and local secrets
+node_modules/
+*.log
+.env*
+
+# Editors and systems
+.DS_Store
+.idea/
+.vscode/
+
+# Local Claude Code settings
+.claude/
+
+# The types that Claude Code writes into the mod folder at each load
+.claude-plugin/types/
+
+# Videos belong in ~/Videos/Monet, not in the repository.
+# Keep the samples and the README's GIFs.
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.gif
+!samples/*.mp4
+!docs/*.gif
+
+# The first design mock stays local.
+docs/design/

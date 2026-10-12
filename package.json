@@ -1,0 +1,19 @@
+{
+  "name": "terminal-monet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A mini player for Claude Code: your videos, GIFs and pictures as a color mosaic at the side or under the spinner. Real pixels in kitty and Ghostty.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "claude --plugin-dir=.",
+    "test": "claude plugin test .",
+    "validate": "claude plugin validate .",
+    "typecheck": "npx -y -p typescript@5.6.3 tsc -p .",
+    "preview": "node scripts/preview.mjs",
+    "samples": "node scripts/make-atelier-samples.mjs && node scripts/make-starry-night.mjs"
+  }
+}

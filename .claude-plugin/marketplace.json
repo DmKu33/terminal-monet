@@ -1,0 +1,14 @@
+{
+  "name": "terminal-monet",
+  "description": "A mini player for Claude Code: your videos, GIFs and pictures as a color mosaic at the side or under the spinner. Real pixels in kitty and Ghostty.",
+  "owner": {
+    "name": "DmKu33"
+  },
+  "plugins": [
+    {
+      "name": "monet",
+      "source": "./",
+      "description": "A mini player for Claude Code: your videos, GIFs and pictures as a color mosaic at the side or under the spinner. Real pixels in kitty and Ghostty."
+    }
+  ]
+}
