@@ -35,7 +35,7 @@ import {
 } from './library'
 import type { Meta, Places } from './library'
 import { IDLE, describeTool, firstLine, sessionLines, spinnerWord, statusLineText, statusLines, textCells } from './status'
-import type { SessionStats, Status } from './status'
+import type { Recent, SessionStats, Status } from './status'
 import { parseColor, terminalFrom, themeFor } from './terminal'
 import type { TerminalInfo } from './terminal'
 
@@ -201,6 +201,7 @@ async function detectBackground($: $): Promise<string | undefined> {
 
 const THEME = 'custom:monet'
 let claudeTheme = ''
+let themeWatch: Timer | null = null
 
 async function readTheme($: $): Promise<string> {
   const row = (await $.config.list()).find(one => one.key === 'theme')
@@ -229,6 +230,14 @@ async function useTheme($: $, isOn: boolean): Promise<string> {
     if (current !== THEME) await $.store.set('previousTheme', current)
     // After this command's own turn: a command cannot run another while it runs.
     $.clock.after(300, () => void $.command.run({ command: 'theme', args: '' }).catch(() => undefined))
+    // Watch the pick closely for a minute, so the panel changes as soon as Monet is picked.
+    const until = Date.now() + 60_000
+    themeWatch?.cancel()
+    themeWatch = $.clock.every(1_000, () => {
+      void readTheme($).then(theme => {
+        if (theme === THEME || Date.now() > until) themeWatch?.cancel()
+      }).catch(() => undefined)
+    })
     return 'Pick "Monet" in the theme list: it paints the whole side pane in your terminal color.'
   }
   const value = String((await $.store.get('previousTheme')) ?? 'dark')
@@ -555,6 +564,7 @@ const infoCells = (m: Pick<Mounted, 'info' | 'isDock' | 'title' | 'stats'>) =>
   textCells(
     statusLines(status, Date.now(), m.info.columns, settings.style, {
       isTall: m.isDock,
+      ...(m.isDock ? { rows: m.info.rows, recent } : {}),
       ...(session && !m.stats ? { session } : {}),
       ...(m.title ? { title: m.title } : {}),
     }),
@@ -564,11 +574,14 @@ const infoCells = (m: Pick<Mounted, 'info' | 'isDock' | 'title' | 'stats'>) =>
 
 // The session's figures for the stats block; read again every 5 seconds while Monet shows.
 let session: SessionStats | undefined
+// Claude's last steps, newest first, for the side panel's middle.
+const recent: Recent[] = []
 
-// "claude-opus-5-5" reads as "Opus 5.5"; any other name stays as it is.
+// "claude-opus-5-5" reads as "Opus 5.5" and "claude-opus-5[1m]" as "Opus 5" (the
+// context row says the window); a date after the version is dropped. Other names stay.
 const modelName = (id: string) =>
-  id.replace(/^claude-([a-z]+)-(\d+)-(\d+).*$/, (_, name: string, major: string, minor: string) =>
-    `${name[0]!.toUpperCase()}${name.slice(1)} ${major}.${minor}`)
+  id.replace(/^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?!\d).*$/, (_, name: string, major: string, minor?: string) =>
+    `${name[0]!.toUpperCase()}${name.slice(1)} ${major}${minor ? `.${minor}` : ''}`)
 
 async function refreshSession($: $): Promise<void> {
   const [model, prompts, usage] = await Promise.all([$.session.model(), $.session.turns(), $.session.usage()])
@@ -640,9 +653,13 @@ async function show($: $, isAsked: boolean): Promise<void> {
   const isPlaced = await openPane($)
   await setSite($, isPlaced ? 'pane' : mode === 'auto' ? 'band' : 'none')
   // Once ever: the side panel is Claude's gray until the Monet theme paints it all.
+  // A few seconds on, so the toast does not land while the panel is still opening.
   if (isPlaced && claudeTheme !== THEME && paneColor() && !(await $.store.get('themeTip'))) {
-    $.ui.toast("Tip: /monet theme paints the whole side panel in your terminal's color.")
-    await $.store.set('themeTip', true)
+    $.clock.after(4_000, () => {
+      if (site !== 'pane' || claudeTheme === THEME) return
+      $.ui.toast("Tip: /monet theme paints the whole side panel in your terminal's color.")
+      void $.store.set('themeTip', true)
+    })
   }
 }
 
@@ -817,11 +834,17 @@ function playerTree($: $, { ui, siteId, isDock, columns, rows, shown, s, paint }
   // A docked pane keeps 14 rows under the picture: the status and the stats.
   const look = shown.look
   // Beside the words the picture gets a box as wide as the first design's, 30 x 8.
-  const room = isDock
-    ? { columns: inner.columns, rows: Math.max(3, inner.rows - 14) }
-    : { columns: Math.min(Math.floor(inner.columns / 2), Math.round(inner.rows * 3.75)), rows: inner.rows }
+  // A tall, narrow side panel would leave most of its height empty: there the
+  // mosaic grows to about square (cropping the sides) and to at most 45% of the panel.
+  const natural = fitLayout({ columns: inner.columns, rows: Math.max(3, inner.rows - 14) }, shown, 'fit')
+  const isTall = isDock && look !== 'pixels' && s.fit !== 'fit' && inner.rows - natural.rows > 26
+  const room = isTall
+    ? { columns: inner.columns, rows: Math.max(natural.rows, Math.min(Math.round(inner.rows * 0.45), Math.round(inner.columns * 0.55))) }
+    : isDock
+      ? { columns: inner.columns, rows: Math.max(3, inner.rows - 14) }
+      : { columns: Math.min(Math.floor(inner.columns / 2), Math.round(inner.rows * 3.75)), rows: inner.rows }
   // Ambient fill is a half-block picture; real pixels and the other looks fit.
-  const fit = look === 'pixels' || (s.fit === 'ambient' && look !== 'half') ? 'fit' : s.fit
+  const fit = isTall ? 'fill' : look === 'pixels' || (s.fit === 'ambient' && look !== 'half') ? 'fit' : s.fit
   if (look !== 'pixels') {
     const key = [look, fit, room.columns, room.rows, shown.width, shown.height].join(':')
     if (!sampler || samplerKey !== key) {
@@ -1061,7 +1084,16 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     const input = e as unknown as Record<string, unknown>
     const isMain = e.agentId === undefined
-    if (isMain) setStatus($, { step: describeTool(e.tool, input, settings.style), tools: status.tools + 1 })
+    if (isMain) {
+      const step = describeTool(e.tool, input, settings.style)
+      // The list of last steps uses short verbs, and a step done again moves up.
+      const brief = describeTool(e.tool, input, 'brief')
+      const again = recent.findIndex(r => r.text === brief)
+      if (again >= 0) recent.splice(again, 1)
+      recent.unshift({ text: brief, at: Date.now() })
+      recent.length = Math.min(recent.length, 20)
+      setStatus($, { step, tools: status.tools + 1 })
+    }
     const path = input.file_path ?? input.notebook_path
     if (['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(e.tool) && typeof path === 'string') {
       changed.add(path)

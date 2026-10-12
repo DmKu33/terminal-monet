@@ -47,7 +47,7 @@ Monet makes the folder the first time it starts. It finds new files within 20 se
 
 Monet shows itself when the session starts. You do not type `/monet`.
 
-- **Side:** a panel at the right, in a wide terminal (144 columns or more, or 110 after you opened it once). The picture is on top and the words are under it. Drag the panel's edge to make it wider or narrower. `/monet side` keeps it there.
+- **Side:** a panel at the right, in a wide terminal (144 columns or more, or 110 after you opened it once). The picture is on top and the words are under it. Drag the panel's edge to make it wider or narrower. `/monet side` keeps it there. In a tall, narrow panel the picture grows taller, Claude's last steps fill the middle with how long ago each ran, and the stats sit at the bottom.
 - **Bottom:** a strip under the spinner, in a narrower terminal. The picture is on the left, the words in the middle, and the stats at the right, as in the first design. `/monet bottom` keeps it there.
 
 To hide it, click `×` on the side panel or `[-]` on the bottom strip, or type `/monet`. To keep it off, set **Show** to **Off** in `/monet settings`.

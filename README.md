@@ -38,6 +38,8 @@ Monet finds new files within 20 seconds and shuffles them. `/monet folder` opens
 
 ## Commands
 
+<p align="center"><img src="docs/commands.gif" alt="/monet theme paints the side panel, then /monet bottom, side, next, pause and settings" width="100%"></p>
+
 | Command | What it does |
 | --- | --- |
 | `/monet` | Shows or hides the player. |

@@ -22,6 +22,9 @@ export type Status = {
   failed: number
 }
 
+/** One of Claude's last steps: its words and when it started. */
+export type Recent = { text: string; at: number }
+
 export const IDLE: Status = {
   goal: '', step: '', startedAt: 0, endedAt: 0, done: 0, total: 0, agents: 0, tools: 0, files: 0, failed: 0,
 }
@@ -34,13 +37,18 @@ const WORDS = {
     read: 'Reading', edit: 'Editing', write: 'Writing', run: 'Running', grep: 'Searching for',
     glob: 'Finding', fetch: 'Reading', web: 'Searching the web for', agent: 'Starting an agent:',
     skill: 'Using the skill', use: 'Using', thinking: 'Thinking', done: 'Done', waiting: 'Waiting for a prompt',
-    agents: ['agent', 'agents'], took: 'took', mark: '',
+    agents: ['agent', 'agents'], took: 'took', mark: '', recent: 'Recent',
   },
   atelier: {
     read: 'Studying', edit: 'Inscribing', write: 'Penning', run: 'Brewing:', grep: 'Scrying for',
     glob: 'Seeking', fetch: 'Consulting', web: 'Scrying the web for', agent: 'Summoning a familiar:',
     skill: 'Opening the grimoire:', use: 'Calling on', thinking: 'Pondering', done: 'The spell is cast',
-    waiting: 'The atelier is quiet', agents: ['familiar', 'familiars'], took: 'in', mark: '☽ ',
+    waiting: 'The atelier is quiet', agents: ['familiar', 'familiars'], took: 'in', mark: '☽ ', recent: 'Lately',
+  },
+  // Short verbs, for the list of last steps in a narrow panel.
+  brief: {
+    read: 'Read', edit: 'Edit', write: 'Write', run: 'Run', grep: 'Search', glob: 'Find', fetch: 'Fetch',
+    web: 'Web', agent: 'Agent:', skill: 'Skill', use: 'Use',
   },
 }
 
@@ -61,7 +69,7 @@ export const firstLine = (text: string, max = 160) => {
 const fileName = (path: unknown) => String(path ?? '').split(/[\\/]/).pop()
 
 /** A tool call in a few words: "Editing draw.ts", or "Inscribing draw.ts" in the atelier. */
-export function describeTool(tool: string, input: Record<string, unknown>, style: Style): string {
+export function describeTool(tool: string, input: Record<string, unknown>, style: Style | 'brief'): string {
   const w = WORDS[style]
   switch (tool) {
     case 'Read':
@@ -104,7 +112,9 @@ export function duration(ms: number): string {
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)
   if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`
-  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ${String(m % 60).padStart(2, '0')}m`
+  return `${Math.floor(h / 24)}d ${String(h % 24).padStart(2, '0')}h`
 }
 
 // The time, the tasks and the counters, joined with dots.
@@ -198,6 +208,9 @@ function wrap(text: string, width: number, max: number): string[] {
 type LinesOptions = {
   /** A tall box (the docked pane): the full stats block last. */
   isTall?: boolean
+  /** A tall box's height: Claude's last steps fill the middle, the stats sit at the bottom. */
+  rows?: number
+  recent?: readonly Recent[]
   session?: SessionStats
   /** The clip's name, first in gold, where no frame carries it (the band). */
   title?: string
@@ -206,7 +219,7 @@ type LinesOptions = {
 /** The words beside or under the picture, for a box `width` cells wide. */
 export function statusLines(s: Status, now: number, width: number, style: Style, options: LinesOptions = {}): Line[] {
   const w = WORDS[style]
-  const { isTall = false, session, title } = options
+  const { isTall = false, rows, recent = [], session, title } = options
   const out: Line[] = []
   if (title) out.push({ text: `${w.mark}${title}`, color: GOLD })
   if (s.startedAt === 0) out.push({ text: w.waiting, color: MUTED })
@@ -217,11 +230,32 @@ export function statusLines(s: Status, now: number, width: number, style: Style,
     out.push({ text: s.endedAt === 0 ? s.step || w.thinking : w.done, color: DEFAULT_COLOR })
     out.push({ text: facts(s, now, style, false), color: MUTED })
   }
+  if (isTall && rows) {
+    // The work on top, the last steps under it, the stats at the bottom by the controls.
+    const bottom = session ? sessionLines(session, now) : []
+    const room = rows - out.length - bottom.length - 3
+    if (recent.length > 0 && room >= 1) {
+      out.push({ text: '', color: MUTED }, { text: w.recent, color: MUTED })
+      for (const r of recent.slice(0, room)) {
+        const age = ago(now - r.at)
+        const text = firstLine(r.text, Math.max(4, width - age.length - 3))
+        out.push({ text: `· ${text.padEnd(width - age.length - 3)} ${age}`, color: MUTED })
+      }
+    }
+    while (out.length < rows - bottom.length) out.push({ text: '', color: MUTED })
+    return [...out, ...bottom]
+  }
   if (session) {
     out.push({ text: '', color: MUTED })
     out.push(...(isTall ? sessionLines(session, now) : [sessionLine(session, now)]))
   }
   return out
+}
+
+// How long ago, in one unit: 12s, 4m, 2h.
+const ago = (ms: number) => {
+  const s = Math.max(0, Math.round(ms / 1000))
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`
 }
 
 // A Raster takes width-1 characters only: wide ones (CJK, emoji) become "?".
@@ -238,8 +272,10 @@ export function textCells(lines: readonly Line[], columns: number, rows: number)
     const line = lines[r]
     const label = line?.label === undefined ? '' : line.label.padEnd(LABEL_WIDTH)
     // A meter: heavy line for what is used, light line for the rest; amber from 75%, red from 90%.
-    const fill = line?.meter === undefined ? 0 : Math.round(Math.min(1, Math.max(0, line.meter)) * METER_WIDTH)
-    const meter = line?.meter === undefined ? '' : `${'━'.repeat(fill)}${'─'.repeat(METER_WIDTH - fill)} `
+    // A narrow box gets a shorter meter, so the figure after it still shows.
+    const width = line?.meter === undefined ? 0 : Math.max(3, Math.min(METER_WIDTH, columns - label.length - line.text.length - 1))
+    const fill = line?.meter === undefined ? 0 : Math.round(Math.min(1, Math.max(0, line.meter)) * width)
+    const meter = line?.meter === undefined ? '' : `${'━'.repeat(fill)}${'─'.repeat(width - fill)} `
     const level = (line?.meter ?? 0) >= 0.9 ? RED : (line?.meter ?? 0) >= 0.75 ? AMBER : GOLD
     const chars = line ? Array.from(`${label}${meter}${line.text}`.slice(0, columns * 2)) : []
     for (let c = 0; c < columns; c++) {
@@ -248,7 +284,7 @@ export function textCells(lines: readonly Line[], columns: number, rows: number)
       const m = c - label.length
       words[i] = c === columns - 1 && chars.length > columns ? 0x2026 : isNarrow(cp) ? cp : 0x3f
       words[i + 1] =
-        c < label.length ? MUTED : m < fill ? level : m < METER_WIDTH && meter ? TRACK : (line?.color ?? DEFAULT_COLOR)
+        c < label.length ? MUTED : m < fill ? level : m < width && meter ? TRACK : (line?.color ?? DEFAULT_COLOR)
       words[i + 2] = DEFAULT_COLOR
     }
   }

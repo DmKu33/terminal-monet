@@ -170,6 +170,7 @@ test('the words under the picture say the goal, the step and the time', async ()
   expect(statusLines(done, 99_000, 40, 'plain').map(l => l.text)).toEqual(['Fix the pane colors', 'Done', 'took 1m 12s · task 3 of 5 · 1 agent · 2 files · 1 failed'])
   expect(statusLines(IDLE, 0, 40, 'plain').map(l => l.text)).toEqual(['Waiting for a prompt'])
   expect(duration(3_723_000)).toBe('1h 02m')
+  expect(duration((701 * 60 + 56) * 60_000)).toBe('29d 05h')
 })
 
 test('the atelier says it with a moon and familiars', async () => {
@@ -201,6 +202,31 @@ test('a tall box ends with the session stats, a short one with one line of them'
     'Cost||$1.84',
   ])
   expect(statusLines(IDLE, 4_320_000, 30, 'plain', { session }).at(-1)?.text).toBe('Opus 5.5 · ctx 38% · 1h 12m')
+})
+
+test('a tall side panel lists the last steps in the middle and keeps the stats at the bottom', async () => {
+  const session = {
+    model: 'Opus 5', prompts: 3, startedAt: 0, contextPercent: 26, contextWindow: 1_000_000,
+    limits: [], usd: 0.5,
+  }
+  const working = { ...IDLE, goal: 'Fix the cache', step: 'Reading draw.ts', startedAt: 90_000 }
+  const recent = [
+    { text: 'Reading draw.ts', at: 96_000 },
+    { text: 'Editing status.ts', at: 60_000 },
+    { text: 'Running npm test', at: 0 },
+  ]
+  const lines = statusLines(working, 100_000, 28, 'plain', { isTall: true, rows: 16, recent, session })
+  expect(lines.length).toBe(16)
+  expect(lines.slice(0, 3).map(l => l.text)).toEqual(['Fix the cache', 'Reading draw.ts', '10s'])
+  expect(lines.slice(4, 8).map(l => l.text)).toEqual([
+    'Recent',
+    '· Reading draw.ts         4s',
+    '· Editing status.ts      40s',
+    '· Running npm test        1m',
+  ])
+  expect(lines.at(-1)?.text).toBe('$0.50')
+  // With no room to spare, the steps make way for the stats.
+  expect(statusLines(working, 100_000, 28, 'plain', { isTall: true, rows: 9, recent, session }).some(l => l.text === 'Recent')).toBe(false)
 })
 
 test('a long goal wraps to two lines and ends with an ellipsis', async () => {
